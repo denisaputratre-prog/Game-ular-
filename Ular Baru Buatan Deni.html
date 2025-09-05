@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ular HP</title>
+<style>
+    body {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        margin: 0;
+        background: black;
+        height: 100vh;
+        font-family: sans-serif;
+        color: white;
+    }
+    canvas {
+        border: 3px solid #fff;
+        margin-top: 10px;
+    }
+    #scoreDisplay {
+        margin-top: 10px;
+        font-size: 24px;
+    }
+    #pauseBtn {
+        margin: 10px;
+        padding: 10px 20px;
+        font-size: 18px;
+        cursor: pointer;
+    }
+    .controls {
+        position: fixed;
+        bottom: 20px;
+        display: grid;
+        grid-template-columns: 60px 60px 60px;
+        grid-template-rows: 60px 60px;
+        gap: 10px;
+        justify-content: center;
+        width: 100%;
+    }
+    .btn {
+        width: 60px;
+        height: 60px;
+        background: #333;
+        color: white;
+        font-size: 24px;
+        border-radius: 10px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        user-select: none;
+        touch-action: manipulation;
+    }
+    .btn:active {
+        background: #555;
+    }
+    .empty { background: transparent; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div id="scoreDisplay">Skor: <span id="score">0</span></div>
+<canvas id="gameCanvas" width="400" height="400"></canvas>
+<audio id="eatSound" src="clik900.mp3"></audio>
+<button id="pauseBtn">Pause</button>
+
+<div class="controls">
+    <div class="empty"></div>
+    <div class="btn" id="up">↑</div>
+    <div class="empty"></div>
+    <div class="btn" id="left">←</div>
+    <div class="btn" id="down">↓</div>
+    <div class="btn" id="right">→</div>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const grid = 20;
+let snake = [{x: 160, y: 160}];
+let direction = {x: 1, y: 0};
+let nextDirection = {x: 1, y: 0};
+let food = {x: 0, y: 0};
+let score = 0;
+let foodEaten = 0;
+let paused = false;
+
+// Load head image
+const headImg = new Image();
+headImg.src = "DioS.jpg";
+
+// Load sound
+const eatSound = document.getElementById("eatSound");
+
+// Partikel saat makan
+let particles = [];
+
+// Animasi bintang latar
+let stars = [];
+for(let i=0; i<50; i++){
+    stars.push({x: Math.random()*canvas.width, y: Math.random()*canvas.height, size: Math.random()*2+1, speed: Math.random()*0.5+0.2});
+}
+
+// Random food position
+function randomFood() {
+    food.x = Math.floor(Math.random() * (canvas.width / grid)) * grid;
+    food.y = Math.floor(Math.random() * (canvas.height / grid)) * grid;
+}
+randomFood();
+
+// Fungsi set arah
+function setDirection(x, y){
+    if((x !== -direction.x) && (y !== -direction.y)) {
+        nextDirection = {x, y};
+    }
+}
+
+// Tombol kontrol untuk click + touchstart
+const controls = ["up", "down", "left", "right"];
+controls.forEach(id => {
+    document.getElementById(id).addEventListener("click", () => {
+        if(id==="up") setDirection(0,-1);
+        if(id==="down") setDirection(0,1);
+        if(id==="left") setDirection(-1,0);
+        if(id==="right") setDirection(1,0);
+    });
+    document.getElementById(id).addEventListener("touchstart", e => {
+        e.preventDefault();
+        if(id==="up") setDirection(0,-1);
+        if(id==="down") setDirection(0,1);
+        if(id==="left") setDirection(-1,0);
+        if(id==="right") setDirection(1,0);
+    });
+});
+
+// Tombol pause/resume
+document.getElementById("pauseBtn").addEventListener("click", () => {
+    paused = !paused;
+    document.getElementById("pauseBtn").innerText = paused ? "Resume" : "Pause";
+});
+
+// Partikel saat makan
+function spawnParticles(x, y){
+    for(let i=0; i<15; i++){
+        particles.push({
+            x: x + grid/2,
+            y: y + grid/2,
+            vx: (Math.random()-0.5)*2,
+            vy: (Math.random()-0.5)*2,
+            life: 20
+        });
+    }
+}
+
+// Game loop 5 FPS
+setInterval(gameLoop, 200);
+
+function gameLoop() {
+    if(paused) return;
+
+    direction = nextDirection;
+
+    const head = {x: snake[0].x + direction.x * grid, y: snake[0].y + direction.y * grid};
+
+    // cek tabrakan dengan diri sendiri
+    for(let i = 1; i < snake.length; i++){
+        if(snake[i].x === head.x && snake[i].y === head.y){
+            alert("Game Over!");
+            resetGame();
+            return;
+        }
+    }
+
+    // cek tabrakan dengan dinding
+    if(head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height){
+        alert("Game Over!");
+        resetGame();
+        return;
+    }
+
+    snake.unshift(head);
+
+    // Makan makanan
+    if(head.x === food.x && head.y === food.y){
+        eatSound.currentTime = 0; // reset agar suara bisa diputar berturut-turut
+        eatSound.play();           // mainkan suara makan
+        spawnParticles(food.x, food.y);
+        randomFood();
+        foodEaten++;
+        score += (foodEaten % 7 === 0) ? 10 : 1; // bonus 10 tiap 7 makanan
+        document.getElementById("score").innerText = score;
+    } else {
+        snake.pop();
+    }
+
+    // Clear canvas
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Gambar bintang latar
+    ctx.fillStyle = "white";
+    stars.forEach(star => {
+        star.y += star.speed;
+        if(star.y > canvas.height) star.y = 0;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI*2);
+        ctx.fill();
+    });
+
+    // Gambar makanan
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.arc(food.x + grid/2, food.y + grid/2, grid/2, 0, Math.PI*2);
+    ctx.fill();
+
+    // Gambar ular
+    snake.forEach((segment, index) => {
+        if(index === 0){
+            ctx.drawImage(headImg, segment.x, segment.y, grid, grid);
+        } else {
+            ctx.fillStyle = "lime";
+            ctx.fillRect(segment.x, segment.y, grid, grid);
+        }
+    });
+
+    // Gambar partikel
+    for(let i=particles.length-1; i>=0; i--){
+        let p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+        ctx.fillStyle = `rgba(255,255,0,${p.life/20})`;
+        ctx.fillRect(p.x, p.y, 3, 3);
+        if(p.life <= 0) particles.splice(i,1);
+    }
+}
+
+// Reset game
+function resetGame(){
+    snake = [{x:160, y:160}];
+    direction = {x:1, y:0};
+    nextDirection = {x:1, y:0};
+    randomFood();
+    particles = [];
+    score = 0;
+    foodEaten = 0;
+    document.getElementById("score").innerText = score;
+}
+</script>
+</body>
+</html>
